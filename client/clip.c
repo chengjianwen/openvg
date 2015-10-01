@@ -14,11 +14,11 @@
 int main(int argc, char **argv) {
 	int w, h, fontsize;
 	VGint x, cx, cy, cw, ch, midy, speed;
-	char *message = "Now is the time for all good men to come to the aid of the party";
+	char *message = "一只敏捷的棕色狐狸跳过了一只懒惰的狗";
 	char done[3];
 
 	init(&w, &h);
-	speed = 15;
+	speed = 2;
 	midy = (VGfloat) h / 2;
 	fontsize = w / 50;
 	cx = 0.0;
@@ -35,7 +35,7 @@ int main(int argc, char **argv) {
 		ClipRect(cx, cy, cw, ch);
 		Translate(x, cy + (fontsize / 2));
 		Fill(0, 0, 0, 1);
-		Text(0, 0, message, SansTypeface, fontsize);
+		Text(0, 0, message, fontsize);
 		ClipEnd();
 		End();
 	}

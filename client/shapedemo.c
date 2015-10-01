@@ -9,7 +9,6 @@
 #include <fcntl.h>
 #include "VG/openvg.h"
 #include "VG/vgu.h"
-#include "fontinfo.h"
 #include "shapes.h"
 
 // randcolor returns a random number 0..255
@@ -85,15 +84,15 @@ void gradient(int width, int height) {
 	
 	RGB(0,0,0,dotcolor);
 	setfill(dotcolor);
-	TextMid(x1, y1-20, "(x1, y1)", SansTypeface, 18);
-	TextMid(x2, y2+10, "(x2, y2)", SansTypeface, 18);
-	TextMid(cx, cy, "(cx, cy)", SansTypeface, 18);
-	TextMid(fx, fy, "(fx, fy)", SansTypeface, 18);
-	TextEnd(cx+(r/2)+20, cy, "r", SansTypeface, 18);
+	TextMid(x1, y1-20, "(x1, y1)", 18);
+	TextMid(x2, y2+10, "(x2, y2)", 18);
+	TextMid(cx, cy, "(cx, cy)", 18);
+	TextMid(fx, fy, "(fx, fy)", 18);
+	TextEnd(cx+(r/2)+20, cy, "r", 18);
 	
 	
-	TextMid(x1+((x2-x1)/2), h/6, "Linear Gradient", SansTypeface, 36);
-	TextMid(cx, h/6, "Radial Gradient", SansTypeface, 36);
+	TextMid(x1+((x2-x1)/2), h/6, "Linear Gradient", 36);
+	TextMid(cx, h/6, "Radial Gradient", 36);
 	
 	
 	End();
@@ -154,26 +153,25 @@ void raspi(int w, int h, char *s) {
 	Background(255, 255, 255);
 	makepi(midx - (rw / 2), midy - (rh / 2), rw, rh);
 	Fill(128, 0, 0, 1);
-	TextMid(midx, midy - (rh / 2) - (fontsize * 2), s, SansTypeface, fontsize);
+	TextMid(midx, midy - (rh / 2) - (fontsize * 2), s, fontsize);
 	End();
 }
 
 typedef struct {
-	Fontinfo font;
 	VGfloat tw;
 	int fontsize;
 } FW;
 
-void textbbox(char *s, Fontinfo f, int pointsize) {
+void textbbox(char *s, int pointsize) {
 
 }
 
 // adjust the font to fit within a width
 void fitwidth(int width, int adj, char *s, FW * f) {
-	f->tw = TextWidth(s, f->font, f->fontsize);
+	f->tw = TextWidth(s, f->fontsize);
 	while (f->tw > width) {
 		f->fontsize -= adj;
-		f->tw = TextWidth(s, f->font, f->fontsize);
+		f->tw = TextWidth(s, f->fontsize);
 	}
 }
 
@@ -181,9 +179,9 @@ void fitwidth(int width, int adj, char *s, FW * f) {
 void testpattern(int w, int h, char *s) {
 	VGfloat midx, midy1, midy2, midy3;
 	int fontsize = 256, h2 = h / 2;
-	FW tw1 = { MonoTypeface, 0, fontsize };
-	FW tw2 = { SansTypeface, 0, fontsize };
-	FW tw3 = { SerifTypeface, 0, fontsize };
+	FW tw1 = { 0, fontsize };
+	FW tw2 = { 0, fontsize };
+	FW tw3 = { 0, fontsize };
 
 	Start(w, h);
 
@@ -210,22 +208,22 @@ void testpattern(int w, int h, char *s) {
 	midy3 = h2 - 20 - tw2.fontsize - (tw3.fontsize) / 2;
 
 	Fill(128, 128, 128, 1);
-	TextMid(midx, midy1, s, tw1.font, tw1.fontsize);
+	TextMid(midx, midy1, s, tw1.fontsize);
 	Fill(128, 0, 0, 1);
-	TextMid(midx, midy2, s, tw2.font, tw2.fontsize);
+	TextMid(midx, midy2, s, tw2.fontsize);
 	Fill(0, 0, 128, 1);
-	TextMid(midx, midy3, s, tw3.font, tw3.fontsize);
+	TextMid(midx, midy3, s, tw3.fontsize);
 	End();
 }
 
 // textlines writes lines of text
-void textlines(VGfloat x, VGfloat y, char *s[], Fontinfo f, int fontsize, VGfloat leading) {
+void textlines(VGfloat x, VGfloat y, char *s[], int fontsize, VGfloat leading) {
 	int i;
 	for (i = 0;; i++) {
 		if (s[i] == NULL) {
 			break;
 		}
-		TextMid(x, y, s[i], f, fontsize);
+		TextMid(x, y, s[i], fontsize);
 		y -= leading;
 	}
 }
@@ -248,12 +246,12 @@ void tb(int w, int h) {
 
 	Start(w, h);
 	Fill(49, 79, 79, 1);
-	textlines(tmargin, top, para, SerifTypeface, fontsize, leading);
-	textlines(tmargin, mid, para, SansTypeface, fontsize, leading);
-	textlines(tmargin, bot, para, MonoTypeface, fontsize, leading);
-	Text(lmargin, top - midb, "Serif", SansTypeface, lfontsize);
-	Text(lmargin, mid - midb, "Sans", SansTypeface, lfontsize);
-	Text(lmargin, bot - midb, "Mono", SansTypeface, lfontsize);
+	textlines(tmargin, top, para, fontsize, leading);
+	textlines(tmargin, mid, para, fontsize, leading);
+	textlines(tmargin, bot, para, fontsize, leading);
+	Text(lmargin, top - midb, "Serif", lfontsize);
+	Text(lmargin, mid - midb, "Sans", lfontsize);
+	Text(lmargin, bot - midb, "Mono", lfontsize);
 	End();
 }
 
@@ -301,7 +299,7 @@ void imagetable(int w, int h) {
 		Fill(255, 255, 255, 0.3);
 		Rect(x, y, imgw, 32);
 		Fill(0, 0, 0, 1);
-		TextMid(x + (imgw / 2), y + 10, itable[i], SansTypeface, 16);
+		TextMid(x + (imgw / 2), y + 10, itable[i], 16);
 
 		x += imgw + gutter;
 		if (x > w) {
@@ -311,7 +309,7 @@ void imagetable(int w, int h) {
 	}
 	y = h * 0.1;
 	Fill(128, 128, 128, 1);
-	TextMid(w / 2, 100, "Joshua Tree National Park", SansTypeface, 48);
+	TextMid(w / 2, 100, "Joshua Tree National Park", 48);
 	End();
 }
 
@@ -334,10 +332,10 @@ void fontrange(int w, int h) {
 	// for each size, display a character and label
 	for (x = lx, s = sizes; *s; s++) {
 		Fill(128, 0, 0, 1);
-		TextMid(x, y, "a", SerifTypeface, *s);
+		TextMid(x, y, "a", *s);
 		Fill(128, 128, 128, 1);
 		snprintf(num, 3, "%d", *s);
-		TextMid(x, y - spacing, num, SansTypeface, 16);
+		TextMid(x, y - spacing, num, 16);
 		x += *s + spacing;
 	}
 	// draw a line below the characters, a curve above
@@ -374,10 +372,10 @@ void refcard(int width, int height) {
 	sx = width * 0.10;
 
 	Fill(128, 0, 0, 1);
-	TextEnd(width - 20, height / 2, "OpenVG on the Raspberry Pi", SansTypeface, fontsize + (fontsize / 2));
+	TextEnd(width - 20, height / 2, "OpenVG on the Raspberry Pi", fontsize + (fontsize / 2));
 	Fill(0, 0, 0, 1);
 	for (i = 0; i < ns; i++) {
-		Text(sx + sw + sw / 2, sy, shapenames[i], SansTypeface, fontsize);
+		Text(sx + sw + sw / 2, sy, shapenames[i], fontsize);
 		sy -= sh * spacing;
 	}
 	sy = top;
@@ -460,7 +458,7 @@ void rotext(int w, int h, int n, char *s) {
 	Translate(x, y);
 	for (i = 0; i < n; i++) {
 		Fill(255, 255, 255, alpha);
-		Text(0, 0, s, SerifTypeface, size);
+		Text(0, 0, s, size);
 		alpha -= fade;				   // fade
 		size += n;				   // enlarge
 		Rotate(deg);
@@ -543,7 +541,7 @@ void rshapes(int width, int height, int n) {
 		Polyline(polyx, polyy, np);
 	}
 	Fill(128, 0, 0, 1);
-	Text(20, 20, "OpenVG on the Raspberry Pi", SansTypeface, 32);
+	Text(20, 20, "OpenVG on the Raspberry Pi", 32);
 	End();
 }
 
@@ -577,16 +575,16 @@ void advert(int w, int h) {
 	char *s = "github.com/ajstarks/openvg";
 	char *a = "ajstarks@gmail.com";
 	int imw = 110, imh = 110, rw = w/4, rh = (rw*2/3);
-	VGfloat tw = TextWidth(s, SansTypeface, fontsize);
+	VGfloat tw = TextWidth(s, fontsize);
 
 	Start(w, h);
 	makepi((w/2) - (rw/2), h/2, rw, rh);
 	Fill(128, 0, 0, 1);
-	Text(w / 2 - (tw / 2), y - (fontsize / 4), s, SansTypeface, fontsize);
+	Text(w / 2 - (tw / 2), y - (fontsize / 4), s, fontsize);
 	y -= 100;
-	tw = TextWidth(a, SansTypeface, fontsize / 3);
+	tw = TextWidth(a, fontsize / 3);
 	Fill(128, 128, 128, 1);
-	Text(w / 2 - (tw / 2), y, a, SansTypeface, fontsize / 3);
+	Text(w / 2 - (tw / 2), y, a, fontsize / 3);
 	Image((w / 2) - (imw / 2), 20, imw, imh, "starx.jpg");
 	End();
 }

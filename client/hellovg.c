@@ -5,7 +5,6 @@
 #include <unistd.h>
 #include "VG/openvg.h"
 #include "VG/vgu.h"
-#include "fontinfo.h"
 #include "shapes.h"
 
 int main() {
@@ -19,7 +18,7 @@ int main() {
 	Fill(44, 77, 232, 1);				   // Big blue marble
 	Circle(width / 2, 0, width);			   // The "world"
 	Fill(255, 255, 255, 1);				   // White text
-	TextMid(width / 2, height / 2, "hello, world", SerifTypeface, width / 10);	// Greetings 
+	TextMid(width / 2, height / 2, "hello, 你好", width / 10);	// Greetings 
 	End();						   // End the picture
 
 	fgets(s, 2, stdin);				   // look at the pic, end with [RETURN]

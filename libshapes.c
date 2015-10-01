@@ -12,13 +12,18 @@
 #include "EGL/egl.h"
 #include "GLES/gl.h"
 #include "bcm_host.h"
-#include "DejaVuSans.inc"				   // font data
-#include "DejaVuSerif.inc"
-#include "DejaVuSansMono.inc"
 #include "eglstate.h"					   // data structures for graphics state
-#include "fontinfo.h"					   // font data structure
+#include "ft2build.h"
+#include FT_FREETYPE_H
+#include FT_OUTLINE_H
+
+#define FONTLIB	"/usr/share/fonts/TTF/HanaMinA.ttf"
+
+FT_Library library;
+FT_Face face;
+
 static STATE_T _state, *state = &_state;	// global graphics state
-static const int MAXFONTPATH = 256;
+static const int MAXFONTPATH = 0xA000;
 //
 // Terminal settings
 //
@@ -44,50 +49,6 @@ void rawterm() {
 // restore resets the terminal to the previously saved setting
 void restoreterm() {
 	tcsetattr(fileno(stdin), TCSANOW, &orig_term_attr);
-}
-
-//
-// Font functions
-//
-
-// loadfont loads font path data
-// derived from http://web.archive.org/web/20070808195131/http://developer.hybrid.fi/font2openvg/renderFont.cpp.txt
-Fontinfo loadfont(const int *Points,
-		  const int *PointIndices,
-		  const unsigned char *Instructions,
-		  const int *InstructionIndices, const int *InstructionCounts, const int *adv, const short *cmap, int ng) {
-
-	Fontinfo f;
-	int i;
-
-	memset(f.Glyphs, 0, MAXFONTPATH * sizeof(VGPath));
-	if (ng > MAXFONTPATH) {
-		return f;
-	}
-	for (i = 0; i < ng; i++) {
-		const int *p = &Points[PointIndices[i] * 2];
-		const unsigned char *instructions = &Instructions[InstructionIndices[i]];
-		int ic = InstructionCounts[i];
-		VGPath path = vgCreatePath(VG_PATH_FORMAT_STANDARD, VG_PATH_DATATYPE_S_32,
-					   1.0f / 65536.0f, 0.0f, 0, 0,
-					   VG_PATH_CAPABILITY_ALL);
-		f.Glyphs[i] = path;
-		if (ic) {
-			vgAppendPathData(path, ic, instructions, p);
-		}
-	}
-	f.CharacterMap = cmap;
-	f.GlyphAdvances = adv;
-	f.Count = ng;
-	return f;
-}
-
-// unloadfont frees font path data
-void unloadfont(VGPath * glyphs, int n) {
-	int i;
-	for (i = 0; i < n; i++) {
-		vgDestroyPath(glyphs[i]);
-	}
 }
 
 // createImageFromJpeg decompresses a JPEG image to the standard image format
@@ -212,49 +173,42 @@ void dumpscreen(int w, int h, FILE * fp) {
 	free(ScreenBuffer);
 }
 
-Fontinfo SansTypeface, SerifTypeface, MonoTypeface;
-
 // init sets the system to its initial state
 void init(int *w, int *h) {
 	bcm_host_init();
 	memset(state, 0, sizeof(*state));
 	oglinit(state);
-	SansTypeface = loadfont(DejaVuSans_glyphPoints,
-				DejaVuSans_glyphPointIndices,
-				DejaVuSans_glyphInstructions,
-				DejaVuSans_glyphInstructionIndices,
-				DejaVuSans_glyphInstructionCounts,
-				DejaVuSans_glyphAdvances, DejaVuSans_characterMap, DejaVuSans_glyphCount);
-
-	SerifTypeface = loadfont(DejaVuSerif_glyphPoints,
-				 DejaVuSerif_glyphPointIndices,
-				 DejaVuSerif_glyphInstructions,
-				 DejaVuSerif_glyphInstructionIndices,
-				 DejaVuSerif_glyphInstructionCounts,
-				 DejaVuSerif_glyphAdvances, DejaVuSerif_characterMap, DejaVuSerif_glyphCount);
-
-	MonoTypeface = loadfont(DejaVuSansMono_glyphPoints,
-				DejaVuSansMono_glyphPointIndices,
-				DejaVuSansMono_glyphInstructions,
-				DejaVuSansMono_glyphInstructionIndices,
-				DejaVuSansMono_glyphInstructionCounts,
-				DejaVuSansMono_glyphAdvances, DejaVuSansMono_characterMap, DejaVuSansMono_glyphCount);
-
 	*w = state->screen_width;
 	*h = state->screen_height;
+	int error;
+
+	error = FT_Init_FreeType(&library);
+	if (error) {
+		printf("error!\n");
+		exit(-1);
+	}
+
+	error = FT_New_Face(library, FONTLIB, 0, &face);
+	if (error == FT_Err_Unknown_File_Format) {
+		printf("unsupport!\n");
+		exit(-1);
+	} else if (error) {
+		printf("error!\n");
+		exit(-1);
+	}
+	FT_Set_Char_Size(face, 0, 64 * 64, 96, 96);
 }
 
 // finish cleans up
 void finish() {
-	unloadfont(SansTypeface.Glyphs, SansTypeface.Count);
-	unloadfont(SerifTypeface.Glyphs, SerifTypeface.Count);
-	unloadfont(MonoTypeface.Glyphs, MonoTypeface.Count);
 	glClear(GL_COLOR_BUFFER_BIT);
 	eglSwapBuffers(state->display, state->surface);
 	eglMakeCurrent(state->display, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
 	eglDestroySurface(state->display, state->surface);
 	eglDestroyContext(state->display, state->context);
 	eglTerminate(state->display);
+	FT_Done_Face(face);
+	FT_Done_FreeType(library);
 }
 
 //
@@ -396,58 +350,247 @@ void ClipEnd() {
 	vgSeti(VG_SCISSORING, VG_FALSE);
 }
 
-// Text renders a string of text at a specified location, size, using the specified font glyphs
-// derived from http://web.archive.org/web/20070808195131/http://developer.hybrid.fi/font2openvg/renderFont.cpp.txt
-void Text(VGfloat x, VGfloat y, char *s, Fontinfo f, int pointsize) {
-	VGfloat size = (VGfloat) pointsize, xx = x, mm[9];
-	int i;
+#define IS_IN_RANGE(c, f, l)    (((c) >= (f)) && ((c) <= (l)))
+
+char *readNextChar(char *p, int *character) {
+	// TODO: since UTF-8 is a variable-length
+	// encoding, you should pass in the input
+	// buffer's actual byte length so that you
+	// can determine if a malformed UTF-8
+	// sequence would exceed the end of the buffer...
+
+	char c1, c2, *ptr = p;
+	int uc = 0;
+	int seqlen;
+	int datalen = strlen(p);
+
+	if (datalen < 1) {
+		// malformed data, do something !!!
+		return NULL;
+	}
+
+	c1 = ptr[0];
+
+	if ((c1 & 0x80) == 0) {
+		uc = (unsigned long)(c1 & 0x7F);
+		seqlen = 1;
+	} else if ((c1 & 0xE0) == 0xC0) {
+		uc = (unsigned long)(c1 & 0x1F);
+		seqlen = 2;
+	} else if ((c1 & 0xF0) == 0xE0) {
+		uc = (unsigned long)(c1 & 0x0F);
+		seqlen = 3;
+	} else if ((c1 & 0xF8) == 0xF0) {
+		uc = (unsigned long)(c1 & 0x07);
+		seqlen = 4;
+	} else {
+		// malformed data, do something !!!
+		return NULL;
+	}
+
+	if (seqlen > datalen) {
+		// malformed data, do something !!!
+		return NULL;
+	}
+
+	for (int i = 1; i < seqlen; ++i) {
+		c1 = ptr[i];
+
+		if ((c1 & 0xC0) != 0x80) {
+			// malformed data, do something !!!
+			return NULL;
+		}
+	}
+
+	switch (seqlen) {
+	case 2:
+		{
+			c1 = ptr[0];
+
+			if (!IS_IN_RANGE(c1, 0xC2, 0xDF)) {
+				// malformed data, do something !!!
+				return NULL;
+			}
+
+			break;
+		}
+
+	case 3:
+		{
+			c1 = ptr[0];
+			c2 = ptr[1];
+
+			if (((c1 == 0xE0) && !IS_IN_RANGE(c2, 0xA0, 0xBF)) ||
+			    ((c1 == 0xED) && !IS_IN_RANGE(c2, 0x80, 0x9F)) ||
+			    (!IS_IN_RANGE(c1, 0xE1, 0xEC) && !IS_IN_RANGE(c1, 0xEE, 0xEF))) {
+				// malformed data, do something !!!
+				return NULL;
+			}
+
+			break;
+		}
+
+	case 4:
+		{
+			c1 = ptr[0];
+			c2 = ptr[1];
+
+			if (((c1 == 0xF0) && !IS_IN_RANGE(c2, 0x90, 0xBF)) ||
+			    ((c1 == 0xF4) && !IS_IN_RANGE(c2, 0x80, 0x8F)) || !IS_IN_RANGE(c1, 0xF1, 0xF3)) {
+				// malformed data, do something !!!
+				return NULL;
+			}
+
+			break;
+		}
+	}
+
+	for (int i = 1; i < seqlen; ++i) {
+		uc = ((uc << 6) | (unsigned long)(ptr[i] & 0x3F));
+	}
+
+	*character = uc;
+	p += seqlen;
+	return p;
+}
+
+void Text(VGfloat x, VGfloat y, char *s, int pointsize) {
+	float size = (VGfloat) pointsize, xx = x, mm[9];
 
 	vgGetMatrix(mm);
-	for (i = 0; i < (int)strlen(s); i++) {
-		unsigned int character = (unsigned int)s[i];
-		int glyph = f.CharacterMap[character];
-		if (glyph == -1) {
-			continue;			   //glyph is undefined
+	int character;
+	char *ss = s;
+	int error;
+	while ((ss = readNextChar(ss, &character)) != NULL) {
+		int glyphIndex = FT_Get_Char_Index(face, character);
+
+		error = FT_Load_Glyph(face, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING | FT_LOAD_IGNORE_TRANSFORM);
+		assert(error == 0);
+
+		int *points = NULL;
+		int point_len = 0;
+		unsigned char *instructions = NULL;
+		int instruction_len = 0;
+		FT_Outline outline = face->glyph->outline;
+		float minx = 0.0f, miny = 0.0f, maxx = 0.0f, maxy = 0.0f;
+		int s = 0, e;
+		for (int con = 0; con < outline.n_contours; ++con) {
+			int pnts = 1;
+			e = outline.contours[con] + 1;
+
+			//read the contour start point
+			instruction_len += 1;
+			instructions = realloc(instructions, instruction_len * sizeof(unsigned char));
+			instructions[instruction_len - 1] = 2;
+			point_len += 2;
+			points = realloc(points, point_len * sizeof(int));
+			points[point_len - 2] = outline.points[s].x * 16.0f;
+			points[point_len - 1] = outline.points[s].y * 16.0f;
+
+			int i = s + 1;
+			while (i <= e) {
+				int c = (i == e) ? s : i;
+				int n = (i == e - 1) ? s : (i + 1);
+				if (outline.tags[c] & 1) { //line
+					++i;
+					instruction_len += 1;
+					instructions = realloc(instructions, instruction_len * sizeof(unsigned char));
+					instructions[instruction_len - 1] = 4;
+					point_len += 2;
+					points = realloc(points, point_len * sizeof(int));
+					points[point_len - 2] = outline.points[c].x * 16.0f;
+					points[point_len - 1] = outline.points[c].y * 16.0f;
+					pnts += 1;
+				} else {		   //spline
+					instruction_len += 1;
+					instructions = realloc(instructions, instruction_len * sizeof(unsigned char));
+					instructions[instruction_len - 1] = 10;
+					point_len += 2;
+					points = realloc(points, point_len * sizeof(int));
+					points[point_len - 2] = outline.points[c].x * 16.0f;
+					points[point_len - 1] = outline.points[c].y * 16.0f;
+					if (outline.tags[n] & 1) {	//next on
+						point_len += 2;
+						points = realloc(points, point_len * sizeof(int));
+						points[point_len - 2] = outline.points[n].x * 16.0f;
+						points[point_len - 1] = outline.points[n].y * 16.0f;
+						i += 2;
+					} else {	   //next off, use middle point
+						point_len += 2;
+						points = realloc(points, point_len * sizeof(int));
+						points[point_len - 2] = (outline.points[c].x + outline.points[c].x) * 16.0f * 0.5f;
+						points[point_len - 1] = (outline.points[c].y + outline.points[c].y) * 16.0f * 0.5f;
+						++i;
+					}
+					pnts += 2;
+				}
+			}
+			instruction_len += 1;
+			instructions = realloc(instructions, instruction_len * sizeof(unsigned char));
+			instructions[instruction_len - 1] = 0;
+			s = e;
 		}
+
+		for (unsigned int i = 0; i < point_len / 2; ++i) {
+			if (points[i * 2] < minx)
+				minx = points[i * 2];
+			if (points[i * 2] > maxx)
+				maxx = points[i * 2];
+			if (points[i * 2 + 1] < miny)
+				miny = points[i * 2 + 1];
+			if (points[i * 2 + 1] > maxy)
+				maxy = points[i * 2 + 1];
+		}
+
+		VGPath path = vgCreatePath(VG_PATH_FORMAT_STANDARD, VG_PATH_DATATYPE_S_32,
+					   1.0f / 65536.0f, 0.0f, 0, 0,
+					   VG_PATH_CAPABILITY_ALL);
+		if (instruction_len > 0) {
+			vgAppendPathData(path, instruction_len, instructions, points);
+		}
+
 		VGfloat mat[9] = {
 			size, 0.0f, 0.0f,
 			0.0f, size, 0.0f,
 			xx, y, 1.0f
 		};
+		free(points);
+		free(instructions);
 		vgLoadMatrix(mm);
 		vgMultMatrix(mat);
-		vgDrawPath(f.Glyphs[glyph], VG_FILL_PATH);
-		xx += size * f.GlyphAdvances[glyph] / 65536.0f;
+		vgDrawPath(path, VG_FILL_PATH);
+		xx += size * (float)face->glyph->advance.x / 4096.0f;
 	}
 	vgLoadMatrix(mm);
 }
 
 // TextWidth returns the width of a text string at the specified font and size.
-VGfloat TextWidth(char *s, Fontinfo f, int pointsize) {
-	int i;
+VGfloat TextWidth(char *s, int pointsize) {
 	VGfloat tw = 0.0;
 	VGfloat size = (VGfloat) pointsize;
-	for (i = 0; i < (int)strlen(s); i++) {
-		unsigned int character = (unsigned int)s[i];
-		int glyph = f.CharacterMap[character];
-		if (glyph == -1) {
-			continue;			   //glyph is undefined
-		}
-		tw += size * f.GlyphAdvances[glyph] / 65536.0f;
+	int character;
+	char *ss = s;
+	int error;
+	while ((ss = readNextChar(ss, &character)) != NULL) {
+		int glyphIndex = FT_Get_Char_Index(face, character);
+
+		error = FT_Load_Glyph(face, glyphIndex, FT_LOAD_NO_BITMAP | FT_LOAD_NO_HINTING | FT_LOAD_IGNORE_TRANSFORM);
+		assert(error == 0);
+		tw += size * (float)face->glyph->advance.x / 4096.0f;
 	}
 	return tw;
 }
 
 // TextMid draws text, centered on (x,y)
-void TextMid(VGfloat x, VGfloat y, char *s, Fontinfo f, int pointsize) {
-	VGfloat tw = TextWidth(s, f, pointsize);
-	Text(x - (tw / 2.0), y, s, f, pointsize);
+void TextMid(VGfloat x, VGfloat y, char *s, int pointsize) {
+	VGfloat tw = TextWidth(s, pointsize);
+	Text(x - (tw / 2.0), y, s, pointsize);
 }
 
 // TextEnd draws text, with its end aligned to (x,y)
-void TextEnd(VGfloat x, VGfloat y, char *s, Fontinfo f, int pointsize) {
-	VGfloat tw = TextWidth(s, f, pointsize);
-	Text(x - tw, y, s, f, pointsize);
+void TextEnd(VGfloat x, VGfloat y, char *s, int pointsize) {
+	VGfloat tw = TextWidth(s, pointsize);
+	Text(x - tw, y, s, pointsize);
 }
 
 //
@@ -568,7 +711,7 @@ void Start(int width, int height) {
 
 // End checks for errors, and renders to the display
 void End() {
-	assert(vgGetError() == VG_NO_ERROR);
+//      assert(vgGetError() == VG_NO_ERROR);
 	eglSwapBuffers(state->display, state->surface);
 	assert(eglGetError() == EGL_SUCCESS);
 }
