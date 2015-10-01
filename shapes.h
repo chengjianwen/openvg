@@ -1,6 +1,5 @@
 #include <VG/openvg.h>
 #include <VG/vgu.h>
-#include "fontinfo.h"
 #if defined(__cplusplus)
 extern "C" {
 #endif
@@ -8,10 +7,10 @@ extern "C" {
 	extern void Rotate(VGfloat);
 	extern void Shear(VGfloat, VGfloat);
 	extern void Scale(VGfloat, VGfloat);
-	extern void Text(VGfloat, VGfloat, char *, Fontinfo, int);
-	extern void TextMid(VGfloat, VGfloat, char *, Fontinfo, int);
-	extern void TextEnd(VGfloat, VGfloat, char *, Fontinfo, int);
-	extern VGfloat TextWidth(char *, Fontinfo, int);
+	extern void Text(VGfloat, VGfloat, char *, int);
+	extern void TextMid(VGfloat, VGfloat, char *, int);
+	extern void TextEnd(VGfloat, VGfloat, char *, int);
+	extern VGfloat TextWidth(char *, int);
 	extern void Cbezier(VGfloat, VGfloat, VGfloat, VGfloat, VGfloat, VGfloat, VGfloat, VGfloat);
 	extern void Qbezier(VGfloat, VGfloat, VGfloat, VGfloat, VGfloat, VGfloat);
 	extern void Polygon(VGfloat *, VGfloat *, VGint);
@@ -41,9 +40,6 @@ extern "C" {
 	extern void FillRadialGradient(VGfloat, VGfloat, VGfloat, VGfloat, VGfloat, VGfloat *, int);
 	extern void ClipRect(VGint x, VGint y, VGint w, VGint h);
 	extern void ClipEnd();
-	extern Fontinfo loadfont(const int *, const int *, const unsigned char *, const int *, const int *, const int *,
-				 const short *, int);
-	extern void unloadfont(VGPath *, int);
 	extern void makeimage(VGfloat, VGfloat, int, int, VGubyte *);
 	extern void saveterm();
 	extern void restoreterm();
