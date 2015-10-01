@@ -1,4 +1,5 @@
-# RPi下绘图库，基于https://github.com/ajstarks/openvg.git修改
+# RPi下绘图库
+基于https://github.com/ajstarks/openvg.git
 
 由于原库只支持ASCII码显示，不支持unicode，所以做了修改。
 
